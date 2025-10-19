@@ -1,0 +1,36 @@
+server {
+    listen 80;
+    server_name 192.168.68.119; # L'IP WLAN0 del tuo Pi
+
+    location / {
+        # Imposta l'URL di destinazione che Nginx passerà a Squid.
+        # IMPORTANTISSIMO: Se il sito remoto è HTTPS, usa https:// qui.
+        rewrite ^/(.*) https://streaming-community.cool/titles/25508-guarda-snowfall/watching.html/$1 break; # Esempio: http://blocked-site.com/$1
+
+        # Reindirizza tutte le richieste a Squid (che ascolta sulla porta 3128)
+        proxy_pass http://127.0.0.1:3128; # Squid ascolta su 3128
+
+        # Header cruciali per Squid
+        proxy_set_header Host https://streaming-community.cool/titles/25508-guarda-snowfall/watching.html; # Esempio: blocked-site.com
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # OTTIMIZZAZIONI PER STREAMING E PERFORMANCE
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection ""; # Per HTTP/1.1 e connessioni persistenti
+
+        # Aumenta i timeout (molto importante per connessioni lente o download lunghi)
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+
+        # Passa header importanti per lo streaming
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+
+        proxy_redirect off;
+    }
+}
