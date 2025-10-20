@@ -5,13 +5,13 @@ server {
     location / {
         # Imposta l'URL di destinazione che Nginx passerà a Squid.
         # IMPORTANTISSIMO: Se il sito remoto è HTTPS, usa https:// qui.
-        rewrite ^/(.*) https://link/$1 break;
+        rewrite ^/(.*) https://<URL>/$1 break; # se il browser della tv ti dice che il sito di streaming non esiste prova ad entrare in una sezione specifica del sito.
 
         # Reindirizza tutte le richieste a Squid (che ascolta sulla porta 3128)
-        proxy_pass http://127.0.0.1:3128; # Squid ascolta su 3128
+        proxy_pass http://127.0.0.1:3128; 
 
         # Header cruciali per Squid
-        proxy_set_header Host https://link; 
+        proxy_set_header Host streamingcommunityz.bz;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -20,7 +20,7 @@ server {
         proxy_buffering off;
         proxy_request_buffering off;
         proxy_http_version 1.1;
-        proxy_set_header Connection ""; # Per HTTP/1.1 e connessioni persistenti
+        proxy_set_header Connection "";
 
         # Aumenta i timeout (molto importante per connessioni lente o download lunghi)
         proxy_read_timeout 300s;
