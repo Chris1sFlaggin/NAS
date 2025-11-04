@@ -99,7 +99,7 @@ def main():
         sys.exit(1)
 
     for i in range(NUM_VIDS):
-        stream_url = get_youtube_stream_url(VIDEO_URL[0])
+        stream_url = get_youtube_stream_url(VIDEO_URL[i])
         play_video_to_framebuffer(stream_url)
 
 # --- Esecuzione principale ---
