@@ -4,6 +4,10 @@ import os
 import sys
 import numpy as np
 
+# --- Configurazione ---
+VIDEO_URL = "https://www.youtube.com/watch?v=SDd3OkIljEA"
+FRAMEBUFFER_DEV = "/dev/fb1"
+
 # La risoluzione del tuo schermo TTY (adatta questi valori)
 # *** AGGIORNATO ALLA RISOLUZIONE 480x320 del display mhs35-show ***
 FB_WIDTH = 480
@@ -92,3 +96,15 @@ def play_video_to_framebuffer(stream_url):
             os.close(fb)
             print("Fatto. Framebuffer chiuso.")
 
+# --- Esecuzione principale ---
+
+if __name__ == "__main__":
+    if not os.path.exists(FRAMEBUFFER_DEV):
+        print(f"Errore: Il dispositivo framebuffer {FRAMEBUFFER_DEV} non esiste.", file=sys.stderr)
+        sys.exit(1)
+
+    # Ottieni l'URL di streaming (l'equivalente di 'yt-dlp -g ...')
+    stream_url = get_youtube_stream_url(VIDEO_URL)
+
+    # Riproduci il video
+    play_video_to_framebuffer(stream_url)

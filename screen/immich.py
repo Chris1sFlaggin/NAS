@@ -146,3 +146,11 @@ def main():
         except Exception as e:
             print(f"ERRORE critico durante il ciclo: {e}. Riavvio del ciclo di rotazione.", file=sys.stderr)
             time.sleep(5)
+
+
+if __name__ == "__main__":
+    # Avviso di sicurezza/permessi
+    print("ATTENZIONE: Questo script chiama fbi e deve essere eseguito sulla console TTY.", file=sys.stderr)
+    print("ATTENZIONE: Per la rotazione delle foto è richiesta la libreria PIL/Pillow. Installala con: 'pip install Pillow'.", file=sys.stderr)
+    print("Potrebbe richiedere 'sudo' se non si dispone dei permessi per i dispositivi framebuffer.", file=sys.stderr)
+    main()

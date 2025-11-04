@@ -555,3 +555,11 @@ def listen_touchscreen(stato = 0):
 
     except KeyboardInterrupt:
         print("\nInterrotto dall'utente.")
+
+if __name__ == "__main__":
+    if sys.platform != 'linux':
+        print("Questo script è progettato per sistemi Linux.")
+
+    stato = 0
+    print_dashboard()
+    listen_touchscreen(stato)
