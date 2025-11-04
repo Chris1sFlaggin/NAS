@@ -4,8 +4,20 @@ import os
 import sys
 import numpy as np
 
-NUM_VIDS = 1
-VIDEO_URL = ["https://www.youtube.com/watch?v=SDd3OkIljEA"]
+NUM_VIDS = 10
+VIDEO_URL = [
+  "https://youtu.be/eYI7D7JOX-c",
+  "https://youtu.be/0gGmY2fVwf4",
+  "https://youtu.be/uDCxNHhk268",
+  "https://youtu.be/iCDFkHB7voU",
+  "https://youtu.be/FE5rpTDoUx0",
+  "https://youtu.be/CX7C0CqxAEY",
+  "https://youtu.be/DdL_e7CtNJA",
+  "https://youtu.be/w9GmZFjsicA",
+  "https://youtu.be/KeC5CQBPAu4",
+  "https://youtu.be/OemrJrhZuOw"
+]
+
 FRAMEBUFFER_DEV = "/dev/fb1"
 
 FB_WIDTH = 480
@@ -81,13 +93,16 @@ def play_video_to_framebuffer(stream_url):
             os.close(fb)
             print("Fatto. Framebuffer chiuso.")
 
-# --- Esecuzione principale ---
-
-if __name__ == "__main__":
+def main():
     if not os.path.exists(FRAMEBUFFER_DEV):
         print(f"Errore: Il dispositivo framebuffer {FRAMEBUFFER_DEV} non esiste.", file=sys.stderr)
         sys.exit(1)
 
-    stream_url = get_youtube_stream_url(VIDEO_URL)
+    for i in range(NUM_VIDS):
+        stream_url = get_youtube_stream_url(VIDEO_URL[0])
+        play_video_to_framebuffer(stream_url)
 
-    play_video_to_framebuffer(stream_url)
+# --- Esecuzione principale ---
+
+if __name__ == "__main__":
+    main()

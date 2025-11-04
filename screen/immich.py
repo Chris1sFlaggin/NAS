@@ -21,7 +21,6 @@ PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.heic']
 
 # --- LOGICA DELLO SCRIPT ---
 def find_subdirectories_with_media(root_dir):
-    """Trova tutte le sottodirectory che contengono almeno un file FOTO e mappa i loro contenuti."""
     all_media_lists = {}
     
     for subdir_name in os.listdir(root_dir):
@@ -50,8 +49,6 @@ def find_subdirectories_with_media(root_dir):
 
 
 def run_viewer(file_path, directory_name):
-    """Esegue fbi per visualizzare la foto, applicando prima la rotazione di 180°."""
-    
     print(f"\n--- Visualizzazione FOTO da [{directory_name}]: {os.path.basename(file_path)} ---", file=sys.stderr)
     
     final_path = file_path
@@ -69,7 +66,6 @@ def run_viewer(file_path, directory_name):
         print(f"ERRORE PIL/Rotazione Immagine. Visualizzazione dell'originale. Errore: {e}", file=sys.stderr)
         final_path = file_path
             
-    # --- ESECUZIONE FBI ---
     full_command = [FBI_COMMAND] + FBI_ARGS + [final_path]
     print(f"Esecuzione: {' '.join(full_command)}", file=sys.stderr)
     

@@ -404,7 +404,6 @@ def logs():
     draw_image_to_fb(image)
 
 def prestazioni():
-    """Disegna una schermata con l'uso della CPU, della RAM e della Swap."""
     image = Image.new('RGB', (FB_WIDTH, FB_HEIGHT), color=BG_COLOR)
     draw = ImageDraw.Draw(image)
     draw_header(draw, "Prestazioni", show_back_button=True)
@@ -463,7 +462,6 @@ def print_dashboard():
 
 
 def listen_touchscreen(stato = 0):
-    """Ascolta gli eventi dal touchscreen e interpreta la zona toccata."""
     try:
         device = InputDevice(TOUCHSCREEN_DEVICE)
     except Exception as e:
@@ -556,10 +554,13 @@ def listen_touchscreen(stato = 0):
     except KeyboardInterrupt:
         print("\nInterrotto dall'utente.")
 
-if __name__ == "__main__":
+def main():
     if sys.platform != 'linux':
         print("Questo script è progettato per sistemi Linux.")
 
     stato = 0
     print_dashboard()
     listen_touchscreen(stato)
+
+if __name__ == "__main__":
+    main()
