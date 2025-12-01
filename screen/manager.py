@@ -1,167 +1,182 @@
 from evdev import InputDevice, ecodes
 import os
-import struct
 import sys
 import time
 import subprocess
-import signal # Necessario per terminare i processi
+import signal
+import psutil 
 
 # --- Costanti di configurazione ---
 FB_WIDTH, FB_HEIGHT = 480, 320
-FRAMEBUFFER_DEVICE = '/dev/fb1'
 TOUCHSCREEN_DEVICE = '/dev/input/event0'
-
-# --- Costanti di Design (Tema "Apple Dark") ---
-# (Le tue costanti colore... BG_COLOR, TEXT_COLOR, ecc.)
-BG_COLOR = (20, 20, 22)         
-TEXT_COLOR = (240, 240, 240)    
-PRIMARY_COLOR = (10, 132, 255)  
-SECONDARY_COLOR = (142, 142, 147) 
-GREEN = (52, 199, 89)
-RED = (255, 69, 58)
-YELLOW = (255, 214, 10)
-ORANGE = (255, 159, 10)
-
-PADDING = 20
-CORNER_RADIUS = 10
-
-# Rimuoviamo gli import che non servono più:
-# import psutil
-# import immich 
-# import yt
-# import rpi
 
 # --- Variabile globale per il processo attivo ---
 current_process = None
 
+def clean_lingering_processes():
+    """
+    Cerca e termina processi binari che potrebbero bloccare il framebuffer.
+    """
+    target_processes = ['fbi', 'ffmpeg', 'yt-dlp', 'omxplayer']
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            if proc.info['name'] in target_processes:
+                print(f"Pulizia preventiva: termino processo orfano {proc.info['name']} (PID: {proc.info['pid']})")
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+def kill_process_tree(pid):
+    """
+    Termina un processo e TUTTI i suoi figli ricorsivamente in modo sicuro.
+    """
+    try:
+        parent = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return
+
+    children = parent.children(recursive=True)
+    
+    for child in children:
+        try:
+            child.terminate()
+        except psutil.NoSuchProcess:
+            pass
+            
+    try:
+        parent.terminate()
+    except psutil.NoSuchProcess:
+        pass
+
+    gone, alive = psutil.wait_procs(children + [parent], timeout=3)
+    
+    for p in alive:
+        try:
+            print(f"Forzo kill su {p.pid}")
+            p.kill()
+        except psutil.NoSuchProcess:
+            pass
+
 def start_app(app_name):
     global current_process
     
-    # 1. Termina il processo precedente, se esiste
     if current_process:
-        print(f"Sto terminando il processo precedente (PID: {current_process.pid})...")
-        try:
-            # Usiamo os.killpg per terminare l'intero gruppo di processi (figli inclusi, come fbi o ffmpeg)
-            os.killpg(os.getpgid(current_process.pid), signal.SIGTERM)
-            current_process.wait(timeout=2) # Aspettiamo che termini
-        except (ProcessLookupError, subprocess.TimeoutExpired, PermissionError):
-            # Se non termina o è già morto, usiamo SIGKILL
-            try:
-                os.killpg(os.getpgid(current_process.pid), signal.SIGKILL)
-            except Exception as e:
-                print(f"Errore nel terminare il processo: {e}")
+        print(f"Stop app corrente (PID: {current_process.pid})...")
+        kill_process_tree(current_process.pid)
         current_process = None
+        
+    clean_lingering_processes()
+    time.sleep(0.5) 
 
-    # 2. Avvia il nuovo processo
     command = []
     if app_name == 'immich':
-        # Assicurati che il path sia corretto e usa 'sudo' se serve per fb1
         command = ['sudo', 'python3', 'immich.py']
     elif app_name == 'yt':
         command = ['sudo', 'python3', 'yt.py']
     elif app_name == 'rpi':
         command = ['sudo', 'python3', 'rpi.py']
     else:
-        print(f"App non riconosciuta: {app_name}")
+        print(f"App sconosciuta: {app_name}")
         return
 
-    print(f"Avvio di: {' '.join(command)}")
+    print(f"--- Avvio di: {app_name} ---")
     try:
-        # preexec_fn=os.setsid è FONDAMENTALE per creare un nuovo gruppo di processi
-        # che possiamo terminare in modo affidabile
-        current_process = subprocess.Popen(command, preexec_fn=os.setsid)
+        current_process = subprocess.Popen(command)
     except Exception as e:
-        print(f"Errore durante l'avvio di {app_name}: {e}")
+        print(f"ERRORE critico avvio {app_name}: {e}")
 
-# --- Schermate dell'applicazione ---
-def listen(stato = 10):
+# --- Loop di ascolto ---
+def listen(stato_iniziale=10):
     global current_process 
+    
+    stato = stato_iniziale
     
     try:
         device = InputDevice(TOUCHSCREEN_DEVICE)
     except Exception as e:
-        print(f"Errore: Impossibile avviare il listener del touchscreen: {e}")
-        print("Assicurati che il dispositivo sia connesso e i permessi siano corretti ('sudo'?).")
+        print(f"Errore Touchscreen: {e}")
         return
 
-    print(f"Dispositivo: {device.name}")
-    print(f"In attesa di tocchi su {TOUCHSCREEN_DEVICE}...")
+    print(f"Manager avviato. In ascolto su {TOUCHSCREEN_DEVICE}...")
 
     try:
         abs_x_info = device.absinfo(ecodes.ABS_X)
         abs_y_info = device.absinfo(ecodes.ABS_Y)
-        max_touch_raw_x = abs_x_info.max
-        max_touch_raw_y = abs_y_info.max
+        max_raw_x = abs_x_info.max
+        max_raw_y = abs_y_info.max
     except KeyError:
-        print("Avviso: Impossibile ottenere absinfo. Uso valori di fallback (4095).")
-        max_touch_raw_x = 4095 
-        max_touch_raw_y = 4095
+        max_raw_x = 4095 
+        max_raw_y = 4095
     
-    if max_touch_raw_x == 0 or max_touch_raw_y == 0:
-        print("Errore: I valori massimi del touchscreen non sono validi (0).")
-        return
-
-    current_raw_x, current_raw_y = 0, 0
     center_x = FB_WIDTH // 2
-    center_y = FB_HEIGHT // 2
-
     count = 0 
+    
+    # --- FIX: Inizializzazione variabili coordinate ---
+    curr_x = 0
+    curr_y = 0
+    # --------------------------------------------------
+
     try:
         for event in device.read_loop():
             if event.type == ecodes.EV_ABS:
                 if event.code == ecodes.ABS_X:
-                    current_raw_x = event.value
+                    curr_x = event.value
                 elif event.code == ecodes.ABS_Y:
-                    current_raw_y = event.value
+                    curr_y = event.value
             
             elif event.type == ecodes.EV_KEY and event.code == ecodes.BTN_TOUCH and event.value == 1:
                 count += 1
                 
-                scaled_x = int(((max_touch_raw_y - current_raw_y) / max_touch_raw_y) * FB_WIDTH)
-                scaled_y = int((current_raw_x / max_touch_raw_x) * FB_HEIGHT)
-                scaled_x = max(0, min(FB_WIDTH - 1, scaled_x))
-                scaled_y = max(0, min(FB_HEIGHT - 1, scaled_y))
-
-                print(f"Tocco raw: ({current_raw_x}, {current_raw_y}) -> Scalato: ({scaled_x}, {scaled_y})")
+                # Calcolo coordinate
+                scaled_x = int(((max_raw_y - curr_y) / max_raw_y) * FB_WIDTH)
+                scaled_y = int((curr_x / max_raw_x) * FB_HEIGHT)
                 
                 if count % 2 == 0:
-                    if stato == 0: 
-                        if scaled_x < center_x:
-                                print("-> IMMICH")
-                                stato = 10
-                                start_app('immich') 
-                                
-                    elif stato == 10: 
-                        if scaled_x < center_x:
-                                print("-> YOUTUBE")
-                                stato = 20
-                                start_app('yt') 
-                        if scaled_x > center_x:
-                                print("-> SETTINGS")
-                                stato = 0
-                                start_app('rpi') 
+                    print(f"Touch rilevato: Stato {stato} -> X:{scaled_x} Y:{scaled_y}")
 
-                    elif stato == 20: 
-                        if scaled_x > center_x:
-                                print("-> IMMICH")
-                                stato = 10 
-                                start_app('immich') 
-                                
+                    nuovo_stato = stato
+                    app_da_lanciare = None
+
+                    if stato == 0: # RPI SETTINGS
+                        if scaled_x < center_x: 
+                             nuovo_stato = 10
+                             app_da_lanciare = 'immich'
+
+                    elif stato == 10: # IMMICH (HOME)
+                        if scaled_x < center_x: # Sinistra -> YouTube
+                             nuovo_stato = 20
+                             app_da_lanciare = 'yt'
+                        elif scaled_x > center_x: # Destra -> Settings
+                             nuovo_stato = 0
+                             app_da_lanciare = 'rpi'
+
+                    elif stato == 20: # YOUTUBE
+                        if scaled_x > center_x: # Destra -> Home
+                             nuovo_stato = 10
+                             app_da_lanciare = 'immich'
+                    
+                    if app_da_lanciare:
+                        print(f"Cambio stato: {stato} -> {nuovo_stato} ({app_da_lanciare})")
+                        stato = nuovo_stato
+                        start_app(app_da_lanciare)
+
     except KeyboardInterrupt:
-        print("\nInterrotto dall'utente.")
+        print("\nChiusura Manager...")
     finally:
         if current_process:
-             print("Pulizia finale...")
-             try:
-                 os.killpg(os.getpgid(current_process.pid), signal.SIGTERM)
-             except Exception:
-                 pass 
+             kill_process_tree(current_process.pid)
+        clean_lingering_processes()
 
 if __name__ == "__main__":
-    if sys.platform != 'linux':
-        print("Questo script è progettato per sistemi Linux.")
+    if os.geteuid() != 0:
+        print("ERRORE: Questo script deve essere eseguito con sudo.")
         sys.exit(1)
 
-    stato = 10
+    clean_lingering_processes()
+    
     start_app('immich') 
-    listen(stato)       
+    listen(10)

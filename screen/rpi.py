@@ -407,25 +407,46 @@ def prestazioni():
     image = Image.new('RGB', (FB_WIDTH, FB_HEIGHT), color=BG_COLOR)
     draw = ImageDraw.Draw(image)
     draw_header(draw, "Prestazioni", show_back_button=True)
-
-    cpu_percent = psutil.cpu_percent(interval=1) 
     
+    # CPU
+    cpu_percent = psutil.cpu_percent(interval=1)
+    draw_progress_bar(draw, 80, cpu_percent, "Utilizzo CPU", f"{cpu_percent:.1f}%")
+    
+    # RAM
     mem = psutil.virtual_memory()
     mem_percent = mem.percent
     mem_text = f"{mem.used/1024**3:.1f} GB / {mem.total/1024**3:.1f} GB"
-
+    draw_progress_bar(draw, 160, mem_percent, "Utilizzo RAM", mem_text)
+    
+    # SWAP totale
     swap = psutil.swap_memory()
     swap_percent = swap.percent
     swap_text = f"{swap.used/1024**3:.1f} GB / {swap.total/1024**3:.1f} GB"
-    
-    draw_progress_bar(draw, 80, cpu_percent, "Utilizzo CPU", f"{cpu_percent:.1f}%")
-    
-    draw_progress_bar(draw, 160, mem_percent, "Utilizzo RAM", mem_text)
-    
     draw_progress_bar(draw, 240, swap_percent, "Utilizzo SWAP", swap_text)
     
+    # ZRAM swap separata
+    import subprocess
+    zram_used = 0
+    zram_total = 0
+    try:
+        result = subprocess.run(
+            ["swapon", "--show", "--noheadings", "--bytes"],
+            capture_output=True, text=True
+        )
+        for line in result.stdout.strip().splitlines():
+            name, type_, size, used, prio = line.split()
+            if "zram" in name:
+                zram_used += int(used)
+                zram_total += int(size)
+        if zram_total > 0:
+            zram_percent = (zram_used / zram_total) * 100
+            zram_text = f"{zram_used/1024**3:.2f} GB / {zram_total/1024**3:.2f} GB"
+            draw_progress_bar(draw, 320, zram_percent, "Utilizzo ZRAM", zram_text)
+    except Exception as e:
+        print("Errore leggendo ZRAM:", e)
+    
     draw_image_to_fb(image)
-
+    
 def print_dashboard():
     image = Image.new('RGB', (FB_WIDTH, FB_HEIGHT), color=BG_COLOR)
     draw = ImageDraw.Draw(image)
